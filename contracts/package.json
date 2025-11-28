@@ -1,0 +1,27 @@
+{
+  "name": "@wavehack/contracts",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "build": "massa-as-compile",
+    "build:watch": "chokidar \"assembly/**/*.ts\" -c \"npm run build\"",
+    "clean": "rimraf build",
+    "test": "echo \"TODO: add contract tests\""
+  },
+  "keywords": [
+    "massa",
+    "assemblyscript",
+    "social"
+  ],
+  "license": "MIT",
+  "dependencies": {
+    "@massalabs/as-types": "^2.1.0",
+    "@massalabs/massa-as-sdk": "^3.0.2"
+  },
+  "devDependencies": {
+    "@massalabs/massa-sc-compiler": "^0.2.0",
+    "assemblyscript": "^0.28.9",
+    "chokidar-cli": "^3.0.0",
+    "rimraf": "^5.0.5"
+  }
+}

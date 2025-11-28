@@ -1,0 +1,22 @@
+{
+  "name": "massa-social-stack",
+  "version": "0.1.0",
+  "private": true,
+  "workspaces": [
+    "contracts",
+    "web"
+  ],
+  "scripts": {
+    "build": "npm run build -w contracts && npm run build -w web",
+    "dev": "npm run dev -w web",
+    "lint": "npm run lint -w web",
+    "format": "npm run format -w web",
+    "test": "npm run test -w web"
+  },
+  "author": "WaveHack",
+  "license": "MIT",
+  "description": "Massa WaveHack social dApp monorepo",
+  "dependencies": {
+    "@massalabs/as-types": "^2.1.0"
+  }
+}
