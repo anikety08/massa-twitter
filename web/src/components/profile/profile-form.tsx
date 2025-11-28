@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import { TextArea } from "@/components/ui/textarea";
 import { Avatar } from "@/components/ui/avatar";
 import { uploadMedia } from "@/lib/ipfs";
+import { mediaFromCid } from "@/lib/utils";
 import { useWalletStore } from "@/state/wallet-store";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { socialClient } from "@/lib/massa/client";
@@ -97,6 +98,7 @@ export function ProfileForm({ profile }: ProfileFormProps) {
       );
     } finally {
       setUploading(null);
+      event.target.value = "";
     }
   };
 
@@ -104,55 +106,100 @@ export function ProfileForm({ profile }: ProfileFormProps) {
     upsertProfile(values);
   };
 
+  const avatarCidValue = form.watch("avatarCid");
+  const bannerCidValue = form.watch("bannerCid");
+  const displayNameValue = form.watch("displayName") || "You";
+  const bioValue = form.watch("bio") ?? "";
+  const bioCharacters = bioValue.length;
+
+  const helperText = useMemo(
+    () => ({
+      handle: "Letters, numbers, dashes, underscores (3-32 chars).",
+      displayName: "Shown across feeds and messages.",
+      bio: `${bioCharacters}/280 characters`,
+      banner: bannerCidValue ? "Uploaded" : "Optional 1600x400 image.",
+    }),
+    [bioCharacters, bannerCidValue],
+  );
+
   return (
     <form
       onSubmit={form.handleSubmit(onSubmit)}
-      className="flex flex-col gap-4"
+      className="flex flex-col gap-5"
     >
-      <div className="flex items-center gap-4">
-        <Avatar
-          cid={form.watch("avatarCid")}
-          fallback={profile?.displayName ?? "You"}
-          size={64}
-        />
-        <div>
+      <div className="flex flex-col gap-4 rounded-3xl border border-white/5 bg-white/5 p-4 md:flex-row md:items-center">
+        <Avatar cid={avatarCidValue} fallback={displayNameValue} size={72} />
+        <div className="flex-1">
+          <p className="text-xs uppercase tracking-[0.3em] text-slate-400">
+            Profile preview
+          </p>
+          <p className="text-base font-semibold text-white">{displayNameValue}</p>
           <p className="text-sm text-slate-300">
             {address ? `Connected as ${address}` : "Connect wallet to personalize"}
           </p>
-          <label className="mt-2 block cursor-pointer text-xs font-semibold text-sky-300">
-            {uploading === "avatar" ? "Uploading…" : "Upload avatar"}
-            <input
-              type="file"
-              accept="image/*"
-              className="hidden"
-              onChange={(event) => handleUpload(event, "avatarCid")}
-              disabled={uploading !== null}
-            />
-          </label>
         </div>
+        <label className="block cursor-pointer text-xs font-semibold text-sky-300">
+          {uploading === "avatar" ? "Uploading…" : "Upload avatar"}
+          <input
+            type="file"
+            accept="image/*"
+            className="hidden"
+            onChange={(event) => handleUpload(event, "avatarCid")}
+            disabled={uploading !== null}
+          />
+        </label>
       </div>
 
-      <Input
-        placeholder="@handle"
-        {...form.register("handle")}
-        disabled={isPending}
-      />
-      <Input
-        placeholder="Display name"
-        {...form.register("displayName")}
-        disabled={isPending}
-      />
-      <TextArea
-        rows={4}
-        placeholder="Bio"
-        {...form.register("bio")}
-        disabled={isPending}
-      />
+      <label className="space-y-2 text-sm text-white/80">
+        <span className="text-xs font-semibold uppercase tracking-[0.3em] text-slate-400">
+          Unique handle
+        </span>
+        <Input
+          placeholder="@handle"
+          maxLength={32}
+          autoComplete="off"
+          {...form.register("handle")}
+          disabled={isPending}
+        />
+        <span className="text-xs text-slate-500">{helperText.handle}</span>
+      </label>
 
-      <div className="flex flex-wrap gap-3">
-        <div>
-          <p className="text-xs text-slate-400">Banner</p>
-          <label className="mt-1 block cursor-pointer text-xs font-semibold text-sky-300">
+      <label className="space-y-2 text-sm text-white/80">
+        <span className="text-xs font-semibold uppercase tracking-[0.3em] text-slate-400">
+          Display name
+        </span>
+        <Input
+          placeholder="Display name"
+          maxLength={48}
+          {...form.register("displayName")}
+          disabled={isPending}
+        />
+        <span className="text-xs text-slate-500">{helperText.displayName}</span>
+      </label>
+
+      <label className="space-y-2 text-sm text-white/80">
+        <span className="text-xs font-semibold uppercase tracking-[0.3em] text-slate-400">
+          Bio
+        </span>
+        <TextArea
+          rows={4}
+          placeholder="Tell the Massa community who you are"
+          maxLength={280}
+          {...form.register("bio")}
+          disabled={isPending}
+        />
+        <span className="text-xs text-slate-500">{helperText.bio}</span>
+      </label>
+
+      <div className="grid gap-4 sm:grid-cols-2">
+        <div className="rounded-2xl border border-white/5 bg-black/20 p-4">
+          <p className="text-xs font-semibold uppercase tracking-[0.3em] text-slate-400">
+            Banner
+          </p>
+          <p className="mt-1 text-sm text-slate-300">
+            {helperText.banner}
+          </p>
+          <label className="mt-3 inline-flex cursor-pointer text-xs font-semibold text-sky-300">
             {uploading === "banner" ? "Uploading…" : "Upload banner"}
             <input
               type="file"
@@ -162,6 +209,20 @@ export function ProfileForm({ profile }: ProfileFormProps) {
               disabled={uploading !== null}
             />
           </label>
+        </div>
+        <div
+          className={`flex h-32 items-center justify-center rounded-2xl border border-white/5 ${
+            bannerCidValue ? "bg-cover bg-center" : "border-dashed bg-black/10"
+          }`}
+          style={
+            bannerCidValue
+              ? { backgroundImage: `url(${mediaFromCid(bannerCidValue)})` }
+              : undefined
+          }
+        >
+          {!bannerCidValue && (
+            <span className="text-xs text-slate-500">Banner preview</span>
+          )}
         </div>
       </div>
 
