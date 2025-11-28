@@ -1,0 +1,40 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: dark;
+  background-color: #01030a;
+  color: #f8fafc;
+}
+
+body {
+  @apply bg-[#020617] text-slate-100 antialiased;
+  min-height: 100vh;
+  background-image: radial-gradient(circle at 20% 20%, rgba(59, 130, 246, 0.15), transparent 45%),
+    radial-gradient(circle at 80% 0%, rgba(99, 102, 241, 0.25), transparent 60%);
+}
+
+* {
+  @apply border-slate-800;
+}
+
+::selection {
+  background-color: rgba(59, 130, 246, 0.3);
+  color: #e2e8f0;
+}
+
+::-webkit-scrollbar {
+  width: 8px;
+}
+
+::-webkit-scrollbar-thumb {
+  border-radius: 9999px;
+  background-color: rgba(148, 163, 184, 0.4);
+}
+
+@layer utilities {
+  .glass-panel {
+    @apply rounded-3xl border border-white/5 bg-white/5 backdrop-blur-xl shadow-xl shadow-blue-950/30;
+  }
+}
