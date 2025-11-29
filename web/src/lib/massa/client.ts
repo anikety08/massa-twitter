@@ -3,10 +3,8 @@
 import {
   Args,
   ArrayTypes,
-  JsonRpcProvider,
   Mas,
   type Provider,
-  Account,
 } from "@massalabs/massa-web3";
 import {
   decodeMessages,
@@ -61,6 +59,10 @@ async function readContract(
   
   try {
     // Use direct RPC call to read smart contract
+    // Massa API expects base64 encoded parameters
+    const parameterBytes = args?.serialize() ?? new Uint8Array(0);
+    const parameterBase64 = btoa(String.fromCharCode.apply(null, Array.from(parameterBytes)));
+    
     const rpcResponse = await fetch(PUBLIC_API_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -71,25 +73,38 @@ async function readContract(
         params: {
           target_address: target,
           target_function: func,
-          parameter: Array.from(args?.serialize() ?? new Uint8Array(0)).map(b => b.toString(16).padStart(2, '0')).join(''),
+          parameter: parameterBase64,
           caller_address: caller || target,
         }
       })
     });
 
+    if (!rpcResponse.ok) {
+      throw new Error(`HTTP error! status: ${rpcResponse.status}`);
+    }
+
     const data = await rpcResponse.json();
     
     if (data.error) {
-      throw new Error(data.error.message || 'RPC call failed');
+      // Check if it's a "not found" type error
+      const errorMsg = data.error.message || data.error.toString();
+      if (errorMsg.includes("not found") || errorMsg.includes("does not exist") || errorMsg.includes("empty")) {
+        return new Uint8Array(0);
+      }
+      throw new Error(errorMsg);
     }
     
     if (!data.result || !data.result.output) {
       return new Uint8Array(0);
     }
     
-    // Convert hex string back to Uint8Array
-    const hex = data.result.output;
-    const bytes = new Uint8Array(hex.match(/.{1,2}/g)?.map((byte: string) => parseInt(byte, 16)) || []);
+    // Convert base64 output back to Uint8Array
+    const outputBase64 = data.result.output;
+    const binaryString = atob(outputBase64);
+    const bytes = new Uint8Array(binaryString.length);
+    for (let i = 0; i < binaryString.length; i++) {
+      bytes[i] = binaryString.charCodeAt(i);
+    }
     
     return bytes;
   } catch (error) {
