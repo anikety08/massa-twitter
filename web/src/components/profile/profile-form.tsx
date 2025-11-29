@@ -10,11 +10,12 @@ import { Input } from "@/components/ui/input";
 import { TextArea } from "@/components/ui/textarea";
 import { Avatar } from "@/components/ui/avatar";
 import { uploadMedia } from "@/lib/ipfs";
-import { mediaFromCid } from "@/lib/utils";
+import { mediaFromCid, formatAddress } from "@/lib/utils";
 import { useWalletStore } from "@/state/wallet-store";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { socialClient } from "@/lib/massa/client";
 import type { Profile } from "@/lib/massa/types";
+import { ImageIcon } from "@/components/ui/icons";
 
 const profileSchema = z.object({
   handle: z.string().trim().min(3).max(32),
@@ -57,8 +58,7 @@ export function ProfileForm({ profile }: ProfileFormProps) {
         bannerCid: profile.bannerCid ?? "",
       });
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [profile]); // Only depend on profile, form.reset is stable
+  }, [profile, form]);
 
   const { mutateAsync: upsertProfile, isPending } = useMutation({
     mutationFn: async (values: ProfileFormValues) => {
@@ -74,7 +74,7 @@ export function ProfileForm({ profile }: ProfileFormProps) {
       });
     },
     onSuccess: () => {
-      toast.success("Profile updated on Massa ✨");
+      toast.success("Profile updated!");
       queryClient.invalidateQueries({ queryKey: ["profile", address] });
     },
     onError: (error) => {
@@ -84,7 +84,7 @@ export function ProfileForm({ profile }: ProfileFormProps) {
 
   const handleUpload = async (
     event: React.ChangeEvent<HTMLInputElement>,
-    field: "avatarCid" | "bannerCid",
+    field: "avatarCid" | "bannerCid"
   ) => {
     const file = event.target.files?.[0];
     if (!file) return;
@@ -92,10 +92,10 @@ export function ProfileForm({ profile }: ProfileFormProps) {
     try {
       const result = await uploadMedia(file);
       form.setValue(field, result.cid);
-      toast.success("Media uploaded via IPFS");
+      toast.success("Image uploaded!");
     } catch (error) {
       toast.error(
-        error instanceof Error ? error.message : "Unable to upload media.",
+        error instanceof Error ? error.message : "Unable to upload image."
       );
     } finally {
       setUploading(null);
@@ -109,129 +109,137 @@ export function ProfileForm({ profile }: ProfileFormProps) {
 
   const avatarCidValue = form.watch("avatarCid");
   const bannerCidValue = form.watch("bannerCid");
-  const displayNameValue = form.watch("displayName") || "You";
+  const displayNameValue = form.watch("displayName") || "Your Name";
+  const handleValue = form.watch("handle") || "handle";
   const bioValue = form.watch("bio") ?? "";
   const bioCharacters = bioValue.length;
-
-  const helperText = useMemo(
-    () => ({
-      handle: "Letters, numbers, dashes, underscores (3-32 chars).",
-      displayName: "Shown across feeds and messages.",
-      bio: `${bioCharacters}/280 characters`,
-      banner: bannerCidValue ? "Uploaded" : "Optional 1600x400 image.",
-    }),
-    [bioCharacters, bannerCidValue],
-  );
 
   return (
     <form
       onSubmit={form.handleSubmit(onSubmit)}
-      className="flex flex-col gap-5 rounded-2xl border border-white/10 bg-gradient-to-br from-slate-900/80 to-slate-800/60 p-6 shadow-xl"
+      className="rounded-2xl border border-white/10 bg-slate-900/50 overflow-hidden"
     >
-      <div className="flex flex-col gap-4 rounded-xl border border-white/10 bg-slate-800/50 p-4 md:flex-row md:items-center">
-        <Avatar cid={avatarCidValue} fallback={displayNameValue} size={72} />
-        <div className="flex-1">
-          <p className="text-xs uppercase tracking-[0.3em] text-slate-400">
-            Profile preview
-          </p>
-          <p className="text-base font-semibold text-white">{displayNameValue}</p>
-          <p className="text-sm text-slate-300">
-            {address ? `Connected as ${address}` : "Connect wallet to personalize"}
-          </p>
-        </div>
-        <label className="block cursor-pointer text-xs font-semibold text-sky-300">
-          {uploading === "avatar" ? "Uploading…" : "Upload avatar"}
+      <div
+        className="relative h-32 bg-gradient-to-r from-sky-600 to-indigo-600"
+        style={
+          bannerCidValue
+            ? {
+                backgroundImage: `url(${mediaFromCid(bannerCidValue)})`,
+                backgroundSize: "cover",
+                backgroundPosition: "center",
+              }
+            : undefined
+        }
+      >
+        <label className="absolute inset-0 flex items-center justify-center bg-black/30 opacity-0 hover:opacity-100 transition-opacity cursor-pointer">
+          <div className="bg-black/50 rounded-full p-3">
+            <ImageIcon size={24} className="text-white" />
+          </div>
           <input
             type="file"
             accept="image/*"
             className="hidden"
-            onChange={(event) => handleUpload(event, "avatarCid")}
+            onChange={(event) => handleUpload(event, "bannerCid")}
             disabled={uploading !== null}
           />
         </label>
+        {uploading === "banner" && (
+          <div className="absolute inset-0 flex items-center justify-center bg-black/50">
+            <span className="text-white animate-pulse">Uploading...</span>
+          </div>
+        )}
       </div>
 
-      <label className="space-y-2 text-sm text-white/80">
-        <span className="text-xs font-semibold uppercase tracking-[0.3em] text-slate-400">
-          Unique handle
-        </span>
-        <Input
-          placeholder="@handle"
-          maxLength={32}
-          autoComplete="off"
-          {...form.register("handle")}
-          disabled={isPending}
-        />
-        <span className="text-xs text-slate-500">{helperText.handle}</span>
-      </label>
-
-      <label className="space-y-2 text-sm text-white/80">
-        <span className="text-xs font-semibold uppercase tracking-[0.3em] text-slate-400">
-          Display name
-        </span>
-        <Input
-          placeholder="Display name"
-          maxLength={48}
-          {...form.register("displayName")}
-          disabled={isPending}
-        />
-        <span className="text-xs text-slate-500">{helperText.displayName}</span>
-      </label>
-
-      <label className="space-y-2 text-sm text-white/80">
-        <span className="text-xs font-semibold uppercase tracking-[0.3em] text-slate-400">
-          Bio
-        </span>
-        <TextArea
-          rows={4}
-          placeholder="Tell the Massa community who you are"
-          maxLength={280}
-          {...form.register("bio")}
-          disabled={isPending}
-        />
-        <span className="text-xs text-slate-500">{helperText.bio}</span>
-      </label>
-
-      <div className="grid gap-4 sm:grid-cols-2">
-        <div className="rounded-2xl border border-white/5 bg-black/20 p-4">
-          <p className="text-xs font-semibold uppercase tracking-[0.3em] text-slate-400">
-            Banner
-          </p>
-          <p className="mt-1 text-sm text-slate-300">
-            {helperText.banner}
-          </p>
-          <label className="mt-3 inline-flex cursor-pointer text-xs font-semibold text-sky-300">
-            {uploading === "banner" ? "Uploading…" : "Upload banner"}
-            <input
-              type="file"
-              accept="image/*"
-              className="hidden"
-              onChange={(event) => handleUpload(event, "bannerCid")}
-              disabled={uploading !== null}
+      <div className="px-4 pb-4">
+        <div className="relative -mt-12 mb-4">
+          <div className="relative inline-block">
+            <Avatar
+              cid={avatarCidValue}
+              fallback={displayNameValue}
+              size={80}
+              className="border-4 border-slate-900"
             />
-          </label>
+            <label className="absolute inset-0 flex items-center justify-center rounded-full bg-black/30 opacity-0 hover:opacity-100 transition-opacity cursor-pointer">
+              <ImageIcon size={20} className="text-white" />
+              <input
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={(event) => handleUpload(event, "avatarCid")}
+                disabled={uploading !== null}
+              />
+            </label>
+            {uploading === "avatar" && (
+              <div className="absolute inset-0 flex items-center justify-center rounded-full bg-black/50">
+                <span className="text-white text-xs animate-pulse">...</span>
+              </div>
+            )}
+          </div>
         </div>
-        <div
-          className={`flex h-32 items-center justify-center rounded-2xl border border-white/5 ${
-            bannerCidValue ? "bg-cover bg-center" : "border-dashed bg-black/10"
-          }`}
-          style={
-            bannerCidValue
-              ? { backgroundImage: `url(${mediaFromCid(bannerCidValue)})` }
-              : undefined
-          }
-        >
-          {!bannerCidValue && (
-            <span className="text-xs text-slate-500">Banner preview</span>
+
+        <div className="mb-4">
+          <h2 className="text-xl font-bold text-white">{displayNameValue}</h2>
+          <p className="text-slate-400">@{handleValue}</p>
+          {address && (
+            <p className="text-xs text-slate-500 mt-1">
+              {formatAddress(address, 8)}
+            </p>
           )}
         </div>
-      </div>
 
-      <Button type="submit" disabled={isPending || !provider}>
-        {isPending ? "Saving..." : "Save profile"}
-      </Button>
+        <div className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-slate-300 mb-1">
+              Handle
+            </label>
+            <Input
+              placeholder="your_handle"
+              maxLength={32}
+              autoComplete="off"
+              {...form.register("handle")}
+              disabled={isPending}
+              className="bg-slate-800/50 border-white/10"
+            />
+            <p className="text-xs text-slate-500 mt-1">3-32 characters, no spaces</p>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-slate-300 mb-1">
+              Display Name
+            </label>
+            <Input
+              placeholder="Your Name"
+              maxLength={48}
+              {...form.register("displayName")}
+              disabled={isPending}
+              className="bg-slate-800/50 border-white/10"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-slate-300 mb-1">
+              Bio
+            </label>
+            <TextArea
+              rows={3}
+              placeholder="Tell the world about yourself"
+              maxLength={280}
+              {...form.register("bio")}
+              disabled={isPending}
+              className="bg-slate-800/50 border-white/10 resize-none"
+            />
+            <p className="text-xs text-slate-500 mt-1">{bioCharacters}/280</p>
+          </div>
+
+          <Button
+            type="submit"
+            disabled={isPending || !provider}
+            className="w-full rounded-full font-bold"
+          >
+            {isPending ? "Saving..." : "Save Profile"}
+          </Button>
+        </div>
+      </div>
     </form>
   );
 }
-
-

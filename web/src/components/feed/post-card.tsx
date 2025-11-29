@@ -5,11 +5,18 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { socialClient } from "@/lib/massa/client";
 import type { Post } from "@/lib/massa/types";
-import { timestampToRelative, mediaFromCid, topicToLabel } from "@/lib/utils";
+import { timestampToRelative, mediaFromCid, formatAddress } from "@/lib/utils";
 import { useWalletStore } from "@/state/wallet-store";
 import { Avatar } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import {
+  HeartIcon,
+  CommentIcon,
+  RetweetIcon,
+  ShareIcon,
+  MoreIcon,
+  BookmarkIcon,
+} from "@/components/ui/icons";
 
 type PostCardProps = {
   post: Post;
@@ -30,7 +37,7 @@ export function PostCard({ post, viewer, onReply }: PostCardProps) {
       return socialClient.reactToPost(provider, post.id, "like");
     },
     onSuccess: () => {
-      toast.success("Reaction submitted.");
+      toast.success("Liked!");
       queryClient.invalidateQueries({ queryKey: ["posts", "recent"] });
       queryClient.invalidateQueries({ queryKey: ["posts", "user", post.author] });
       if (address) {
@@ -39,91 +46,159 @@ export function PostCard({ post, viewer, onReply }: PostCardProps) {
     },
     onError: (error) => {
       toast.error(
-        error instanceof Error ? error.message : "Unable to react right now.",
+        error instanceof Error ? error.message : "Unable to react right now."
       );
     },
   });
 
+  const formatNumber = (num: number) => {
+    if (num >= 1000000) return `${(num / 1000000).toFixed(1)}M`;
+    if (num >= 1000) return `${(num / 1000).toFixed(1)}K`;
+    return num.toString();
+  };
+
   return (
-    <article className="rounded-2xl border border-white/10 bg-gradient-to-br from-slate-900/60 to-slate-800/40 p-6 shadow-lg shadow-indigo-950/20 backdrop-blur-sm hover:border-white/20 transition-all duration-200">
-      <div className="flex gap-4">
+    <article className="border-b border-white/10 px-4 py-3 hover:bg-white/[0.02] transition-colors cursor-pointer">
+      <div className="flex gap-3">
         <Avatar
           cid={undefined}
           fallback={post.author}
           size={48}
-          className="border-2 border-white/20 shadow-md"
+          className="border border-white/10"
         />
-        <div className="flex-1 space-y-3">
-          <div className="flex items-center gap-2 text-sm">
-            <span className="font-bold text-white">{post.author}</span>
-            <span className="text-slate-500">·</span>
-            <span className="text-slate-400">{timestampToRelative(post.createdAt)}</span>
-          </div>
-          <p className="text-base leading-relaxed text-slate-100">
-            {post.content}
-          </p>
-          {post.mediaCid && (
-            <div className="overflow-hidden rounded-xl border border-white/10 shadow-md">
-              <Image
-                src={mediaFromCid(post.mediaCid)}
-                alt="post media"
-                width={800}
-                height={450}
-                className="h-auto w-full object-cover"
-              />
+        <div className="flex-1 min-w-0">
+          <div className="flex items-start justify-between gap-2">
+            <div className="flex items-center gap-1 min-w-0">
+              <span className="font-bold text-white truncate hover:underline">
+                {formatAddress(post.author, 8)}
+              </span>
+              <span className="text-slate-500 truncate">
+                @{formatAddress(post.author, 4)}
+              </span>
+              <span className="text-slate-500 flex-shrink-0">·</span>
+              <span className="text-slate-500 hover:underline flex-shrink-0">
+                {timestampToRelative(post.createdAt)}
+              </span>
             </div>
-          )}
+            <button className="p-2 -m-2 rounded-full hover:bg-sky-500/10 hover:text-sky-400 text-slate-500 transition-colors">
+              <MoreIcon size={18} />
+            </button>
+          </div>
+
+          <div className="mt-1">
+            <p className="text-[15px] leading-relaxed text-white whitespace-pre-wrap break-words">
+              {post.content}
+            </p>
+          </div>
+
           {post.topics.length > 0 && (
-            <div className="flex flex-wrap gap-2">
+            <div className="flex flex-wrap gap-1 mt-2">
               {post.topics.map((topic) => (
-                <Badge key={topic} className="bg-sky-500/20 text-sky-300 border border-sky-500/30">
-                  #{topicToLabel(topic)}
-                </Badge>
+                <span
+                  key={topic}
+                  className="text-sky-400 hover:underline cursor-pointer"
+                >
+                  #{topic}
+                </span>
               ))}
             </div>
           )}
-          <div className="flex items-center gap-6 pt-2 border-t border-white/10">
+
+          {post.mediaCid && (
+            <div className="mt-3 overflow-hidden rounded-2xl border border-white/10">
+              <Image
+                src={mediaFromCid(post.mediaCid)}
+                alt="Post media"
+                width={800}
+                height={450}
+                className="h-auto w-full object-cover max-h-[500px]"
+              />
+            </div>
+          )}
+
+          <div className="flex items-center justify-between mt-3 max-w-md -ml-2">
             <button
               type="button"
-              className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg text-slate-300 transition-all hover:text-sky-400 hover:bg-sky-500/10 disabled:opacity-50"
-              onClick={() => reactionMutation.mutate()}
+              onClick={(e) => {
+                e.stopPropagation();
+                onReply?.(post);
+              }}
+              className="group flex items-center gap-1"
+            >
+              <div className="p-2 rounded-full group-hover:bg-sky-500/10 transition-colors">
+                <CommentIcon size={18} className="text-slate-500 group-hover:text-sky-400" />
+              </div>
+              <span className="text-sm text-slate-500 group-hover:text-sky-400">
+                {post.replyCount > 0 && formatNumber(post.replyCount)}
+              </span>
+            </button>
+
+            <button
+              type="button"
+              className="group flex items-center gap-1"
+              disabled={!provider}
+            >
+              <div className="p-2 rounded-full group-hover:bg-green-500/10 transition-colors">
+                <RetweetIcon size={18} className="text-slate-500 group-hover:text-green-400" />
+              </div>
+              <span className="text-sm text-slate-500 group-hover:text-green-400">
+                0
+              </span>
+            </button>
+
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                reactionMutation.mutate();
+              }}
               disabled={reactionMutation.isPending || !provider}
+              className="group flex items-center gap-1"
             >
-              <span role="img" aria-label="like" className="text-lg">
-                {reactionMutation.isPending ? "⏳" : "❤️"}
+              <div className="p-2 rounded-full group-hover:bg-pink-500/10 transition-colors">
+                <HeartIcon
+                  size={18}
+                  className={`${
+                    post.likeCount > 0 ? "text-pink-500" : "text-slate-500"
+                  } group-hover:text-pink-500`}
+                  filled={post.likeCount > 0}
+                />
+              </div>
+              <span
+                className={`text-sm ${
+                  post.likeCount > 0 ? "text-pink-500" : "text-slate-500"
+                } group-hover:text-pink-500`}
+              >
+                {post.likeCount > 0 && formatNumber(post.likeCount)}
               </span>
-              <span className="font-medium">{post.likeCount}</span>
             </button>
+
             <button
               type="button"
-              className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg text-slate-300 transition-all hover:text-sky-400 hover:bg-sky-500/10"
-              onClick={() => onReply?.(post)}
+              className="group flex items-center gap-1"
             >
-              <span className="text-lg">💬</span>
-              <span className="font-medium">{post.replyCount}</span>
+              <div className="p-2 rounded-full group-hover:bg-sky-500/10 transition-colors">
+                <BookmarkIcon size={18} className="text-slate-500 group-hover:text-sky-400" />
+              </div>
             </button>
-            {viewer === post.author && (
-              <span className="ml-auto rounded-full bg-gradient-to-r from-sky-500/20 to-indigo-500/20 border border-sky-500/30 px-3 py-1 text-xs font-medium text-sky-300">
-                Your Post
-              </span>
-            )}
+
+            <button
+              type="button"
+              className="group flex items-center gap-1"
+            >
+              <div className="p-2 rounded-full group-hover:bg-sky-500/10 transition-colors">
+                <ShareIcon size={18} className="text-slate-500 group-hover:text-sky-400" />
+              </div>
+            </button>
           </div>
+
+          {viewer === post.author && (
+            <Badge className="mt-2 bg-sky-500/10 text-sky-400 border border-sky-500/20 text-xs">
+              Your Post
+            </Badge>
+          )}
         </div>
       </div>
-      {provider && onReply && (
-        <div className="mt-4">
-          <Button
-            variant="ghost"
-            size="sm"
-            className="text-xs text-sky-300"
-            onClick={() => onReply(post)}
-          >
-            Reply
-          </Button>
-        </div>
-      )}
     </article>
   );
 }
-
-
