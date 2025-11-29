@@ -1,1 +1,32 @@
+# Dependencies
 node_modules
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Next.js
+web/.next/
+web/out/
+web/build
+
+# Local env files
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+web/.env.local
+web/.env.development.local
+web/.env.test.local
+web/.env.production.local
+
+# DeWeb CLI config (contains sensitive wallet info)
+deweb_cli_config.json
+
+# Contract build artifacts
+contracts/build/
+
+# Misc
+.DS_Store
+*.pem
+.vscode/
+.idea/
