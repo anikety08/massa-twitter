@@ -1,7 +1,7 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useMemo, useState, useEffect } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { socialClient } from "@/lib/massa/client";
 import { useWalletStore } from "@/state/wallet-store";
 import { Sidebar } from "@/components/layout/sidebar";
@@ -17,13 +17,38 @@ import type { Post } from "@/lib/massa/types";
 export function HomeShell() {
   const address = useWalletStore((state) => state.address);
   const [activeTab, setActiveTab] = useState("home");
+  const queryClient = useQueryClient();
 
   const isAuthenticated = Boolean(address);
 
   const profileQuery = useQuery({
     queryKey: ["profile", address],
-    queryFn: () => (address ? socialClient.getProfile(address) : null),
+    queryFn: async () => {
+      if (!address) return null;
+      try {
+        const profile = await socialClient.getProfile(address);
+        console.log("Profile fetched:", profile);
+        return profile;
+      } catch (error) {
+        console.error("Error fetching profile:", error);
+        return null;
+      }
+    },
     enabled: isAuthenticated,
+    refetchInterval: (query) => {
+      // If profile doesn't exist yet and user is authenticated, check more frequently
+      const hasProfile = Boolean(
+        query.state.data?.handle && query.state.data?.displayName
+      );
+      if (isAuthenticated && !hasProfile) {
+        return 2000; // Check every 2 seconds if no profile
+      }
+      return false; // Don't auto-refetch if profile exists
+    },
+    refetchOnWindowFocus: true,
+    refetchOnMount: true,
+    staleTime: 0, // Always fetch fresh data
+    gcTime: 0, // Don't cache stale data (cacheTime renamed to gcTime in v5)
   });
 
   const feedQuery = useQuery({
@@ -54,6 +79,26 @@ export function HomeShell() {
     profileQuery.isFetched &&
     !profileQuery.isFetching &&
     !hasProfile;
+
+  // Force refetch profile when authenticated but no profile detected
+  useEffect(() => {
+    if (isAuthenticated && !hasProfile && address) {
+      const interval = setInterval(async () => {
+        try {
+          const profile = await socialClient.getProfile(address);
+          if (profile?.handle && profile?.displayName) {
+            queryClient.setQueryData(["profile", address], profile);
+            queryClient.invalidateQueries({ queryKey: ["profile"] });
+          } else {
+            queryClient.refetchQueries({ queryKey: ["profile", address] });
+          }
+        } catch (error) {
+          console.error("Error checking profile:", error);
+        }
+      }, 2000);
+      return () => clearInterval(interval);
+    }
+  }, [isAuthenticated, hasProfile, address, queryClient]);
 
   const renderMainContent = () => {
     switch (activeTab) {
@@ -189,24 +234,28 @@ export function HomeShell() {
   };
 
   return (
-    <div className="mx-auto flex min-h-screen max-w-[1300px]">
-      <Sidebar
-        activeTab={activeTab}
-        onTabChange={setActiveTab}
-        profile={profileQuery.data}
-      />
+    <>
+      {!needsProfileSetup && (
+        <div className="mx-auto flex min-h-screen max-w-[1300px]">
+          <Sidebar
+            activeTab={activeTab}
+            onTabChange={setActiveTab}
+            profile={profileQuery.data}
+          />
 
-      <main className="flex-1 border-r border-white/10 min-w-0">
-        {renderMainContent()}
-      </main>
+          <main className="flex-1 border-r border-white/10 min-w-0">
+            {renderMainContent()}
+          </main>
 
-      <RightSidebar />
+          <RightSidebar />
+        </div>
+      )}
 
       <ProfileSetupOverlay
         open={needsProfileSetup}
         profile={profileQuery.data}
         isLoading={profileQuery.isPending}
       />
-    </div>
+    </>
   );
 }

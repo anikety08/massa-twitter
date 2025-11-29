@@ -3,9 +3,10 @@
 import {
   Args,
   ArrayTypes,
-  JsonRPCClient,
+  JsonRpcProvider,
   Mas,
   type Provider,
+  Account,
 } from "@massalabs/massa-web3";
 import {
   decodeMessages,
@@ -32,7 +33,8 @@ const PUBLIC_API_URL =
   process.env.NEXT_PUBLIC_MASSA_PUBLIC_API_URL ??
   "https://buildnet.massa.net/api/v2";
 
-const publicClient = new JsonRPCClient(PUBLIC_API_URL);
+// Note: We use direct RPC calls for reading contracts since JsonRPCClient doesn't have readSC
+// This avoids needing an account for read-only operations
 const DEFAULT_MAX_GAS = BigInt(5_000_000);
 const DEFAULT_FEE = Mas.fromString("0.01");
 
@@ -56,17 +58,52 @@ async function readContract(
   if (!target) {
     throw new Error("Contract address not configured. Please set NEXT_PUBLIC_MASSA_CONTRACT_ADDRESS.");
   }
-  const response = await publicClient.readSC({
-    target,
-    func,
-    parameter: args?.serialize(),
-    caller,
-  });
+  
+  try {
+    // Use direct RPC call to read smart contract
+    const rpcResponse = await fetch(PUBLIC_API_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        jsonrpc: '2.0',
+        id: 1,
+        method: 'read_sc_execution',
+        params: {
+          target_address: target,
+          target_function: func,
+          parameter: Array.from(args?.serialize() ?? new Uint8Array(0)).map(b => b.toString(16).padStart(2, '0')).join(''),
+          caller_address: caller || target,
+        }
+      })
+    });
 
-  if (response.info.error) {
-    throw new Error(response.info.error);
+    const data = await rpcResponse.json();
+    
+    if (data.error) {
+      throw new Error(data.error.message || 'RPC call failed');
+    }
+    
+    if (!data.result || !data.result.output) {
+      return new Uint8Array(0);
+    }
+    
+    // Convert hex string back to Uint8Array
+    const hex = data.result.output;
+    const bytes = new Uint8Array(hex.match(/.{1,2}/g)?.map((byte: string) => parseInt(byte, 16)) || []);
+    
+    return bytes;
+  } catch (error) {
+    // If it's a "not found" error, that's expected for missing profiles
+    if (error instanceof Error && (
+      error.message.includes("not found") || 
+      error.message.includes("No profile") ||
+      error.message.includes("empty") ||
+      error.message.includes("does not exist")
+    )) {
+      return new Uint8Array(0);
+    }
+    throw error;
   }
-  return response.value;
 }
 
 async function executeContract(
@@ -78,16 +115,41 @@ async function executeContract(
   if (!target) {
     throw new Error("Contract address not configured. Please set NEXT_PUBLIC_MASSA_CONTRACT_ADDRESS.");
   }
-  const operation = await provider.callSC({
-    target,
-    func,
-    parameter: args?.serialize(),
-    maxGas: DEFAULT_MAX_GAS,
-    fee: DEFAULT_FEE,
-  });
+  
+  try {
+    const operation = await provider.callSC({
+      target,
+      func,
+      parameter: args?.serialize(),
+      maxGas: DEFAULT_MAX_GAS,
+      fee: DEFAULT_FEE,
+    });
 
-  await operation.waitFinalExecution(90_000, 3_000);
-  return operation.id;
+    // Wait for final execution with longer timeout for profile creation
+    const timeout = func === "upsert_profile" ? 120_000 : 90_000;
+    const pollInterval = func === "upsert_profile" ? 4_000 : 3_000;
+    
+    await operation.waitFinalExecution(timeout, pollInterval);
+    
+    // Additional wait to ensure state is updated on chain
+    if (func === "upsert_profile") {
+      await new Promise(resolve => setTimeout(resolve, 2000));
+    }
+    
+    return operation.id;
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : "Transaction failed";
+    
+    // Parse common contract errors
+    if (errorMessage.includes("HANDLE_ALREADY_TAKEN")) {
+      throw new Error("This handle is already taken. Please choose another one.");
+    }
+    if (errorMessage.includes("already taken") || errorMessage.includes("taken")) {
+      throw new Error("This handle is already taken. Please choose another one.");
+    }
+    
+    throw error;
+  }
 }
 
 function toArgsFromProfile(input: UpsertProfileInput): Args {
@@ -118,10 +180,29 @@ function mediaCidOrEmpty(value?: string | null) {
 export const socialClient = {
   async getProfile(address?: string): Promise<Profile | null> {
     try {
-      const args = address ? new Args().addString(address) : undefined;
+      if (!address) return null;
+      const args = new Args().addString(address);
       const bytes = await readContract("get_profile", args);
-      return decodeProfile(bytes);
-    } catch {
+      
+      // Check if bytes are empty or invalid
+      if (!bytes || bytes.length === 0) {
+        return null;
+      }
+      
+      const profile = decodeProfile(bytes);
+      
+      // Only return if profile has required fields (handle and displayName)
+      if (profile && profile.handle && profile.handle.trim().length > 0 && 
+          profile.displayName && profile.displayName.trim().length > 0) {
+        return profile;
+      }
+      
+      return null;
+    } catch (error) {
+      // Don't log errors for missing profiles - it's expected
+      if (error instanceof Error && !error.message.includes("not found")) {
+        console.error("Error fetching profile:", error);
+      }
       return null;
     }
   },
@@ -139,7 +220,7 @@ export const socialClient = {
   async searchProfiles(query: string, limit = 10): Promise<Profile[]> {
     const args = new Args()
       .addString(query)
-      .addU32(Math.min(limit, 50));
+      .addU32(BigInt(Math.min(limit, 50)));
     const bytes = await readContract("search_profiles", args);
     return decodeProfiles(bytes);
   },
@@ -184,7 +265,7 @@ export const socialClient = {
   },
 
   async listRecentPosts(limit = 20): Promise<Post[]> {
-    const args = new Args().addU32(Math.min(limit, 50));
+    const args = new Args().addU32(BigInt(Math.min(limit, 50)));
     const bytes = await readContract("list_recent_posts", args);
     return decodePosts(bytes);
   },
@@ -192,13 +273,13 @@ export const socialClient = {
   async listUserPosts(address: string, limit = 20): Promise<Post[]> {
     const args = new Args()
       .addString(address)
-      .addU32(Math.min(limit, 50));
+      .addU32(BigInt(Math.min(limit, 50)));
     const bytes = await readContract("list_posts_by_user", args);
     return decodePosts(bytes);
   },
 
   async listFeed(address: string, limit = 20): Promise<Post[]> {
-    const args = new Args().addU32(Math.min(limit, 60));
+    const args = new Args().addU32(BigInt(Math.min(limit, 60)));
     const bytes = await readContract("list_feed", args, address);
     return decodePosts(bytes);
   },
@@ -212,13 +293,13 @@ export const socialClient = {
   async listReplies(parentId: number, limit = 20): Promise<Post[]> {
     const args = new Args()
       .addU64(BigInt(parentId))
-      .addU32(Math.min(limit, 50));
+      .addU32(BigInt(Math.min(limit, 50)));
     const bytes = await readContract("list_replies", args);
     return decodePosts(bytes);
   },
 
   async listTrendingTopics(limit = 10): Promise<TopicStat[]> {
-    const args = new Args().addU32(Math.min(limit, 25));
+    const args = new Args().addU32(BigInt(Math.min(limit, 25)));
     const bytes = await readContract("list_trending_topics", args);
     return decodeTopics(bytes);
   },
@@ -259,7 +340,7 @@ export const socialClient = {
   async listMessages(address: string, peer: string, limit = 25): Promise<Message[]> {
     const args = new Args()
       .addString(peer)
-      .addU32(Math.min(limit, 100));
+      .addU32(BigInt(Math.min(limit, 100)));
     const bytes = await readContract("list_messages", args, address);
     return decodeMessages(bytes);
   },

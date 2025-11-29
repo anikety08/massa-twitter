@@ -157,38 +157,58 @@ async function hydrateFromWallet(
   }
 
   let isHydrating = false;
-  const accountListener = wallet.listenAccountChanges(async (address) => {
-    // Prevent infinite loops by checking if we're already hydrating
-    if (isHydrating) {
-      return;
-    }
-    
-    if (!address) {
-      set({
-        provider: undefined,
-        address: undefined,
-        balance: undefined,
-      });
-      return;
-    }
-    
-    // Only re-hydrate if address actually changed
-    const currentState = get();
-    if (currentState.address === address) {
-      return;
-    }
-    
-    isHydrating = true;
+  // Check if listenAccountChanges is available before calling it
+  let accountListener: ListenerCtrl | undefined;
+  if (typeof wallet.listenAccountChanges === 'function') {
     try {
-      await hydrateFromWallet(wallet, set, get);
-    } finally {
-      isHydrating = false;
+      accountListener = wallet.listenAccountChanges(async (address) => {
+        // Prevent infinite loops by checking if we're already hydrating
+        if (isHydrating) {
+          return;
+        }
+        
+        if (!address) {
+          set({
+            provider: undefined,
+            address: undefined,
+            balance: undefined,
+          });
+          return;
+        }
+        
+        // Only re-hydrate if address actually changed
+        const currentState = get();
+        if (currentState.address === address) {
+          return;
+        }
+        
+        isHydrating = true;
+        try {
+          await hydrateFromWallet(wallet, set, get);
+        } finally {
+          isHydrating = false;
+        }
+      });
+    } catch (error) {
+      // If listenAccountChanges throws an error, continue without the listener
+      console.warn("Account change listener not available:", error);
+      accountListener = undefined;
     }
-  });
+  }
 
-  const networkListener = wallet.listenNetworkChanges((nextNetwork) => {
-    set({ network: nextNetwork });
-  });
+  // Check if listenNetworkChanges is available before calling it
+  let networkListener: ListenerCtrl | undefined;
+  if (typeof wallet.listenNetworkChanges === 'function') {
+    try {
+      networkListener = wallet.listenNetworkChanges((nextNetwork) => {
+        set({ network: nextNetwork });
+      });
+    } catch (error) {
+      // If listenNetworkChanges throws an error, continue without the listener
+      console.warn("Network change listener not available:", error);
+      networkListener = undefined;
+    }
+  }
 
   set({
     wallet,

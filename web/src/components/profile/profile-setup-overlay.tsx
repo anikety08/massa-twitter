@@ -39,64 +39,86 @@ export function ProfileSetupOverlay({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 px-4 py-10 backdrop-blur-2xl">
-      <div className="glass-panel relative w-full max-w-2xl space-y-6 p-8">
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <p className="text-xs uppercase tracking-[0.35em] text-slate-400">
-              On-chain identity
-            </p>
-            <h2 className="text-2xl font-semibold text-white">
-              Claim your Massa profile
-            </h2>
-            <p className="text-sm text-slate-300">
-              Set a unique name, avatar, and bio so friends know it&apos;s you.
-              You can update everything later, but you need a profile to start
-              posting.
-            </p>
-          </div>
-          <div className="flex flex-col items-start gap-3 sm:items-end">
-            <Avatar
-              cid={profile?.avatarCid}
-              fallback={profile?.displayName ?? "You"}
-              size={64}
-            />
-            {address && (
-              <Badge className="bg-white/10 px-4 py-1 text-xs text-white">
-                {formatAddress(address)}
-              </Badge>
-            )}
-            <Button
-              variant="ghost"
-              size="sm"
-              className="text-slate-300"
-              onClick={handleSwitchWallet}
-            >
-              Switch wallet
-            </Button>
+    <div 
+      className="fixed inset-0 z-[100] bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 overflow-y-auto"
+      style={{ pointerEvents: 'auto' }}
+    >
+      {/* Full Page Header */}
+      <div className="sticky top-0 z-10 bg-slate-950/80 backdrop-blur-xl border-b border-white/10">
+        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              <div className="h-12 w-12 rounded-full bg-gradient-to-r from-sky-500 to-indigo-500 flex items-center justify-center">
+                <span className="text-white font-bold text-xl">✓</span>
+              </div>
+              <div>
+                <h1 className="text-2xl sm:text-3xl font-bold text-white">
+                  Create Your Profile
+                </h1>
+                <p className="text-sm text-slate-400 mt-1">
+                  Set up your on-chain identity to start using Massa Social
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-3">
+              {address && (
+                <Badge className="bg-white/10 px-3 py-1.5 text-xs text-white border border-white/20">
+                  {formatAddress(address, 6)}
+                </Badge>
+              )}
+              <Button
+                variant="ghost"
+                size="sm"
+                className="text-slate-300 hover:text-white hover:bg-white/10"
+                onClick={handleSwitchWallet}
+              >
+                Switch wallet
+              </Button>
+            </div>
           </div>
         </div>
+      </div>
 
-        <ul className="space-y-1 rounded-3xl border border-white/5 bg-black/20 p-4 text-xs text-slate-300">
-          {tips.map((tip) => (
-            <li key={tip} className="flex items-start gap-2">
-              <span className="mt-[2px] h-1.5 w-1.5 rounded-full bg-sky-400" />
-              <span>{tip}</span>
-            </li>
-          ))}
-        </ul>
-
-        {isLoading ? (
-          <div className="rounded-3xl border border-white/5 bg-white/5 p-6 text-sm text-slate-400">
-            Loading profile data…
+      {/* Main Content */}
+      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+          {/* Left Column - Tips */}
+          <div className="lg:col-span-1">
+            <div className="sticky top-24">
+              <div className="rounded-2xl border border-sky-500/20 bg-gradient-to-br from-sky-500/10 to-indigo-500/10 p-6">
+                <h3 className="text-base font-semibold text-sky-300 mb-4 flex items-center gap-2">
+                  <span className="text-sky-400 text-lg">💡</span>
+                  Quick Tips
+                </h3>
+                <ul className="space-y-4">
+                  {tips.map((tip, index) => (
+                    <li key={index} className="flex items-start gap-3 text-sm text-slate-200">
+                      <span className="mt-1.5 h-2 w-2 rounded-full bg-sky-400 flex-shrink-0" />
+                      <span className="leading-relaxed">{tip}</span>
+                    </li>
+                  ))}
+                </ul>
+                <div className="mt-6 pt-6 border-t border-white/10">
+                  <p className="text-xs text-slate-400 leading-relaxed">
+                    <span className="text-sky-400 font-semibold">🔗</span> Your profile is stored on the Massa blockchain, making it transparent, decentralized, and editable anytime.
+                  </p>
+                </div>
+              </div>
+            </div>
           </div>
-        ) : (
-          <ProfileForm profile={profile} />
-        )}
 
-        <p className="text-center text-xs text-slate-500">
-          Stored on Massa · Transparent · Editable anytime
-        </p>
+          {/* Right Column - Form */}
+          <div className="lg:col-span-2">
+            {isLoading ? (
+              <div className="rounded-2xl border border-white/10 bg-white/5 p-12 text-center">
+                <div className="inline-block animate-spin rounded-full h-10 w-10 border-2 border-sky-500 border-t-transparent mb-4"></div>
+                <p className="text-slate-400">Loading profile data...</p>
+              </div>
+            ) : (
+              <ProfileForm profile={profile} />
+            )}
+          </div>
+        </div>
       </div>
     </div>
   );
