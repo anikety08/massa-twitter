@@ -20,10 +20,8 @@ export function ProfileSetupOverlay({
   open,
   isLoading,
 }: ProfileSetupOverlayProps) {
-  const { address, disconnect } = useWalletStore((state) => ({
-    address: state.address,
-    disconnect: state.disconnect,
-  }));
+  const address = useWalletStore((state) => state.address);
+  const disconnect = useWalletStore((state) => state.disconnect);
 
   const tips = useMemo(
     () => [

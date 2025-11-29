@@ -32,10 +32,8 @@ type ProfileFormProps = {
 
 export function ProfileForm({ profile }: ProfileFormProps) {
   const queryClient = useQueryClient();
-  const { provider, address } = useWalletStore((state) => ({
-    provider: state.provider,
-    address: state.address,
-  }));
+  const provider = useWalletStore((state) => state.provider);
+  const address = useWalletStore((state) => state.address);
   const [uploading, setUploading] = useState<"avatar" | "banner" | null>(null);
 
   const form = useForm<ProfileFormValues>({
@@ -50,14 +48,17 @@ export function ProfileForm({ profile }: ProfileFormProps) {
   });
 
   useEffect(() => {
-    form.reset({
-      handle: profile?.handle ?? "",
-      displayName: profile?.displayName ?? "",
-      bio: profile?.bio ?? "",
-      avatarCid: profile?.avatarCid ?? "",
-      bannerCid: profile?.bannerCid ?? "",
-    });
-  }, [profile, form]);
+    if (profile) {
+      form.reset({
+        handle: profile.handle ?? "",
+        displayName: profile.displayName ?? "",
+        bio: profile.bio ?? "",
+        avatarCid: profile.avatarCid ?? "",
+        bannerCid: profile.bannerCid ?? "",
+      });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [profile]); // Only depend on profile, form.reset is stable
 
   const { mutateAsync: upsertProfile, isPending } = useMutation({
     mutationFn: async (values: ProfileFormValues) => {
@@ -125,9 +126,9 @@ export function ProfileForm({ profile }: ProfileFormProps) {
   return (
     <form
       onSubmit={form.handleSubmit(onSubmit)}
-      className="flex flex-col gap-5"
+      className="flex flex-col gap-5 rounded-2xl border border-white/10 bg-gradient-to-br from-slate-900/80 to-slate-800/60 p-6 shadow-xl"
     >
-      <div className="flex flex-col gap-4 rounded-3xl border border-white/5 bg-white/5 p-4 md:flex-row md:items-center">
+      <div className="flex flex-col gap-4 rounded-xl border border-white/10 bg-slate-800/50 p-4 md:flex-row md:items-center">
         <Avatar cid={avatarCidValue} fallback={displayNameValue} size={72} />
         <div className="flex-1">
           <p className="text-xs uppercase tracking-[0.3em] text-slate-400">

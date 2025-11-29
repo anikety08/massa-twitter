@@ -42,16 +42,28 @@ export const useWalletStore = create<WalletState>((set, get) => ({
   async connect() {
     set({ isConnecting: true, error: undefined });
     try {
-      const wallets = await safeGetWallets();
+      // Wait a bit for wallets to be available
+      const wallets = await safeGetWallets(100);
+      
+      if (wallets.length === 0) {
+        const errorMsg = "No Massa wallet detected. Please install MassaStation or Bearby wallet extension.";
+        set({ error: errorMsg });
+        throw new Error(errorMsg);
+      }
+
       const preferred =
         wallets.find((wallet) => wallet.enabled()) ?? wallets[0];
       if (!preferred) {
-        throw new Error("No Massa-compatible wallet detected.");
+        const errorMsg = "No enabled wallet found. Please enable your Massa wallet extension.";
+        set({ error: errorMsg });
+        throw new Error(errorMsg);
       }
 
       const connected = await preferred.connect();
       if (!connected) {
-        throw new Error("Wallet connection rejected.");
+        const errorMsg = "Wallet connection was rejected. Please try again.";
+        set({ error: errorMsg });
+        throw new Error(errorMsg);
       }
 
       await hydrateFromWallet(preferred, set, get);
@@ -91,16 +103,26 @@ export const useWalletStore = create<WalletState>((set, get) => ({
     set({ balance: Mas.toString(balance, 4) });
   },
   async autoConnect() {
-    const wallets = await safeGetWallets();
-    for (const wallet of wallets) {
-      try {
-        if (wallet.enabled() && (await wallet.connected())) {
-          await hydrateFromWallet(wallet, set, get);
-          return;
+    // Only run in browser environment
+    if (!isBrowser()) {
+      return;
+    }
+    
+    try {
+      const wallets = await safeGetWallets(100);
+      for (const wallet of wallets) {
+        try {
+          if (wallet.enabled() && (await wallet.connected())) {
+            await hydrateFromWallet(wallet, set, get);
+            return;
+          }
+        } catch {
+          // continue trying other wallets
         }
-      } catch {
-        // continue trying other wallets
       }
+    } catch (error) {
+      // Silent failure for auto-connect
+      console.debug("Auto-connect failed:", error);
     }
   },
 }));
@@ -119,10 +141,28 @@ async function hydrateFromWallet(
     throw new Error("No accounts found in this wallet.");
   }
   const provider = accounts[0];
+  const currentAddress = provider.address;
   const balance = await provider.balance(true);
   const network = await wallet.networkInfos();
 
+  // Check if address changed to prevent unnecessary updates
+  const existingAddress = get().address;
+  if (existingAddress === currentAddress) {
+    // Address hasn't changed, just update balance and network
+    set({
+      balance: Mas.toString(balance, 4),
+      network,
+    });
+    return;
+  }
+
+  let isHydrating = false;
   const accountListener = wallet.listenAccountChanges(async (address) => {
+    // Prevent infinite loops by checking if we're already hydrating
+    if (isHydrating) {
+      return;
+    }
+    
     if (!address) {
       set({
         provider: undefined,
@@ -131,7 +171,19 @@ async function hydrateFromWallet(
       });
       return;
     }
-    await hydrateFromWallet(wallet, set, get);
+    
+    // Only re-hydrate if address actually changed
+    const currentState = get();
+    if (currentState.address === address) {
+      return;
+    }
+    
+    isHydrating = true;
+    try {
+      await hydrateFromWallet(wallet, set, get);
+    } finally {
+      isHydrating = false;
+    }
   });
 
   const networkListener = wallet.listenNetworkChanges((nextNetwork) => {
@@ -141,7 +193,7 @@ async function hydrateFromWallet(
   set({
     wallet,
     provider,
-    address: provider.address,
+    address: currentAddress,
     balance: Mas.toString(balance, 4),
     network,
     listeners: {

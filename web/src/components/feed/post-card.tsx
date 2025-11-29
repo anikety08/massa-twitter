@@ -19,10 +19,8 @@ type PostCardProps = {
 
 export function PostCard({ post, viewer, onReply }: PostCardProps) {
   const queryClient = useQueryClient();
-  const { provider, address } = useWalletStore((state) => ({
-    provider: state.provider,
-    address: state.address,
-  }));
+  const provider = useWalletStore((state) => state.provider);
+  const address = useWalletStore((state) => state.address);
 
   const reactionMutation = useMutation({
     mutationFn: async () => {
@@ -47,25 +45,25 @@ export function PostCard({ post, viewer, onReply }: PostCardProps) {
   });
 
   return (
-    <article className="rounded-3xl border border-white/5 bg-white/5 p-5 shadow-lg shadow-indigo-950/20 backdrop-blur">
+    <article className="rounded-2xl border border-white/10 bg-gradient-to-br from-slate-900/60 to-slate-800/40 p-6 shadow-lg shadow-indigo-950/20 backdrop-blur-sm hover:border-white/20 transition-all duration-200">
       <div className="flex gap-4">
         <Avatar
           cid={undefined}
           fallback={post.author}
-          size={44}
-          className="border border-white/10"
+          size={48}
+          className="border-2 border-white/20 shadow-md"
         />
         <div className="flex-1 space-y-3">
-          <div className="flex items-center gap-2 text-sm text-slate-400">
-            <span className="font-semibold text-white">{post.author}</span>
-            <span>·</span>
-            <span>{timestampToRelative(post.createdAt)}</span>
+          <div className="flex items-center gap-2 text-sm">
+            <span className="font-bold text-white">{post.author}</span>
+            <span className="text-slate-500">·</span>
+            <span className="text-slate-400">{timestampToRelative(post.createdAt)}</span>
           </div>
           <p className="text-base leading-relaxed text-slate-100">
             {post.content}
           </p>
           {post.mediaCid && (
-            <div className="overflow-hidden rounded-3xl border border-white/10">
+            <div className="overflow-hidden rounded-xl border border-white/10 shadow-md">
               <Image
                 src={mediaFromCid(post.mediaCid)}
                 alt="post media"
@@ -78,32 +76,35 @@ export function PostCard({ post, viewer, onReply }: PostCardProps) {
           {post.topics.length > 0 && (
             <div className="flex flex-wrap gap-2">
               {post.topics.map((topic) => (
-                <Badge key={topic}>{topicToLabel(topic)}</Badge>
+                <Badge key={topic} className="bg-sky-500/20 text-sky-300 border border-sky-500/30">
+                  #{topicToLabel(topic)}
+                </Badge>
               ))}
             </div>
           )}
-          <div className="flex items-center gap-4 text-sm text-slate-400">
+          <div className="flex items-center gap-6 pt-2 border-t border-white/10">
             <button
               type="button"
-              className="inline-flex items-center gap-1 text-slate-300 transition hover:text-sky-300"
+              className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg text-slate-300 transition-all hover:text-sky-400 hover:bg-sky-500/10 disabled:opacity-50"
               onClick={() => reactionMutation.mutate()}
-              disabled={reactionMutation.isPending}
+              disabled={reactionMutation.isPending || !provider}
             >
-              <span role="img" aria-label="like">
-                💙
+              <span role="img" aria-label="like" className="text-lg">
+                {reactionMutation.isPending ? "⏳" : "❤️"}
               </span>
-              {post.likeCount}
+              <span className="font-medium">{post.likeCount}</span>
             </button>
             <button
               type="button"
-              className="inline-flex items-center gap-1 text-slate-300 transition hover:text-sky-300"
+              className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg text-slate-300 transition-all hover:text-sky-400 hover:bg-sky-500/10"
               onClick={() => onReply?.(post)}
             >
-              💬 {post.replyCount}
+              <span className="text-lg">💬</span>
+              <span className="font-medium">{post.replyCount}</span>
             </button>
             {viewer === post.author && (
-              <span className="rounded-full bg-white/10 px-2 py-0.5 text-xs text-slate-300">
-                You
+              <span className="ml-auto rounded-full bg-gradient-to-r from-sky-500/20 to-indigo-500/20 border border-sky-500/30 px-3 py-1 text-xs font-medium text-sky-300">
+                Your Post
               </span>
             )}
           </div>

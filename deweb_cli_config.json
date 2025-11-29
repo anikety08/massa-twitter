@@ -1,0 +1,15 @@
+{
+  "wallet_password": "",
+  "wallet_path": "",
+  "node_url": "https://buildnet.massa.net/api/v2",
+  "chunk_size": 64000,
+  "metadatas": {
+    "TITLE": "WaveHack Social on Massa",
+    "DESCRIPTION": "A decentralized social layer for the Massa blockchain with wallet-native identity, feeds, and encrypted messaging.",
+    "KEYWORD1": "massa",
+    "KEYWORD2": "social",
+    "KEYWORD3": "decentralized",
+    "KEYWORD4": "web3"
+  }
+}
+

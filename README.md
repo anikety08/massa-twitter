@@ -50,11 +50,11 @@ It combines wallet-native identity, on-chain profiles and posts, decentralized s
    NEXT_PUBLIC_MASSA_PUBLIC_API_URL=https://buildnet.massa.net/api/v2
    NEXT_PUBLIC_MASSA_CHAIN_ID=776583
    NEXT_PUBLIC_IPFS_GATEWAY=https://ipfs.io/ipfs/
-   NFT_STORAGE_TOKEN=YOUR_NFT_STORAGE_API_TOKEN
+   NEXT_PUBLIC_NFT_STORAGE_TOKEN=YOUR_NFT_STORAGE_API_TOKEN
    ```
 
    - `NEXT_PUBLIC_MASSA_CONTRACT_ADDRESS`: Address returned after deploying `build/social.wasm`.
-   - `NFT_STORAGE_TOKEN`: API key from [nft.storage](https://nft.storage/).
+   - `NEXT_PUBLIC_NFT_STORAGE_TOKEN`: API key from [nft.storage](https://nft.storage/). **Must be prefixed with `NEXT_PUBLIC_` for DeWeb deployment.**
 
 4. Start the Next.js dev server:
 
@@ -91,11 +91,24 @@ All serialization uses the Massa `Args` protocol, so the frontend deserializes v
 
 - Contract compilation ensures AssemblyScript type safety; add integration tests via `as-pect` if needed.
 
+## Deployment
+
+For detailed deployment instructions, including DeWeb deployment, see [DEPLOYMENT.md](./DEPLOYMENT.md).
+
+Quick DeWeb deployment:
+```bash
+# 1. Deploy contract (see DEPLOYMENT.md for details)
+# 2. Set environment variables in web/.env.local
+# 3. Build and deploy
+npm run build:deweb
+npm run deploy:deweb
+```
+
 ## Production Notes
 
 - Wallet actions prompt MassaStation/Bearby users; ensure dApp served over HTTPS in production.
 - Update `NEXT_PUBLIC_MASSA_PUBLIC_API_URL` to a reliable RPC endpoint (self-hosted node recommended).
-- Rotate `NFT_STORAGE_TOKEN` regularly; the API route keeps the token server-side.
+- Rotate `NEXT_PUBLIC_NFT_STORAGE_TOKEN` regularly for security.
 - Consider pinning WASM hash and hardening contract access controls for mainnet.
 
 ## Folder Structure

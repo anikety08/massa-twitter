@@ -12,10 +12,8 @@ import { timestampToRelative } from "@/lib/utils";
 
 export function MessagePanel() {
   const queryClient = useQueryClient();
-  const { provider, address } = useWalletStore((state) => ({
-    provider: state.provider,
-    address: state.address,
-  }));
+  const provider = useWalletStore((state) => state.provider);
+  const address = useWalletStore((state) => state.address);
   const [peerHandle, setPeerHandle] = useState("");
   const [peerAddress, setPeerAddress] = useState<string>();
   const [content, setContent] = useState("");

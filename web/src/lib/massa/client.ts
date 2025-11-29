@@ -38,9 +38,11 @@ const DEFAULT_FEE = Mas.fromString("0.01");
 
 function assertContractAddress(): string {
   if (!CONTRACT_ADDRESS) {
-    throw new Error(
-      "Missing NEXT_PUBLIC_MASSA_CONTRACT_ADDRESS environment variable.",
-    );
+    if (typeof window !== "undefined") {
+      console.error("Missing NEXT_PUBLIC_MASSA_CONTRACT_ADDRESS environment variable.");
+    }
+    // Return empty string instead of throwing to prevent crashes
+    return "";
   }
   return CONTRACT_ADDRESS;
 }
@@ -51,6 +53,9 @@ async function readContract(
   caller?: string,
 ): Promise<Uint8Array> {
   const target = assertContractAddress();
+  if (!target) {
+    throw new Error("Contract address not configured. Please set NEXT_PUBLIC_MASSA_CONTRACT_ADDRESS.");
+  }
   const response = await publicClient.readSC({
     target,
     func,
@@ -70,6 +75,9 @@ async function executeContract(
   args?: Args,
 ): Promise<string> {
   const target = assertContractAddress();
+  if (!target) {
+    throw new Error("Contract address not configured. Please set NEXT_PUBLIC_MASSA_CONTRACT_ADDRESS.");
+  }
   const operation = await provider.callSC({
     target,
     func,

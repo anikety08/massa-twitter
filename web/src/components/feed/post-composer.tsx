@@ -18,10 +18,8 @@ type PostComposerProps = {
 
 export function PostComposer({ avatarCid, displayName }: PostComposerProps) {
   const queryClient = useQueryClient();
-  const { provider, address } = useWalletStore((state) => ({
-    provider: state.provider,
-    address: state.address,
-  }));
+  const provider = useWalletStore((state) => state.provider);
+  const address = useWalletStore((state) => state.address);
   const [content, setContent] = useState("");
   const [topicsInput, setTopicsInput] = useState("");
   const [mediaCid, setMediaCid] = useState<string>();
@@ -79,45 +77,65 @@ export function PostComposer({ avatarCid, displayName }: PostComposerProps) {
   };
 
   return (
-    <div className="glass-panel p-6">
+    <div className="rounded-2xl border border-white/10 bg-gradient-to-br from-slate-900/80 to-slate-800/60 p-6 shadow-xl backdrop-blur-sm">
       <div className="flex gap-4">
-        <Avatar cid={avatarCid} fallback={displayName ?? "You"} size={48} />
-        <div className="flex-1 space-y-3">
+        <Avatar cid={avatarCid} fallback={displayName ?? "You"} size={52} className="border-2 border-white/20 shadow-md" />
+        <div className="flex-1 space-y-4">
           <TextArea
-            rows={3}
-            placeholder="Share something with Massa..."
+            rows={4}
+            placeholder="What's on your mind? Share it with the Massa community..."
             value={content}
             onChange={(event) => setContent(event.target.value)}
             disabled={mutation.isPending}
+            className="bg-slate-800/50 border-white/10 text-white placeholder:text-slate-400 focus:border-sky-500/50"
           />
           <Input
-            placeholder="Topics (comma separated, e.g. massa, defi, wasm)"
+            placeholder="Add topics (comma separated, e.g. massa, defi, web3)"
             value={topicsInput}
             onChange={(event) => setTopicsInput(event.target.value)}
             disabled={mutation.isPending}
+            className="bg-slate-800/50 border-white/10 text-white placeholder:text-slate-400 focus:border-sky-500/50"
           />
-          <div className="flex items-center gap-3">
-            <label className="text-xs font-semibold text-sky-300">
-              {uploading ? "Uploading…" : "Attach media"}
+          <div className="flex items-center gap-4 pt-2 border-t border-white/10">
+            <label className="cursor-pointer inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-slate-800/50 border border-white/10 hover:bg-slate-700/50 transition-colors text-sm font-medium text-sky-300">
+              {uploading ? (
+                <>
+                  <span className="animate-spin">⏳</span>
+                  Uploading...
+                </>
+              ) : (
+                <>
+                  📎 Attach Media
+                </>
+              )}
               <input
                 type="file"
                 accept="image/*,video/*"
                 className="hidden"
                 onChange={handleUpload}
-                disabled={uploading}
+                disabled={uploading || mutation.isPending}
               />
             </label>
             {mediaCid && (
-              <span className="text-xs text-slate-400">
-                Linked CID: {mediaCid.slice(0, 8)}…
+              <span className="text-xs text-emerald-400 bg-emerald-500/10 border border-emerald-500/30 px-3 py-1.5 rounded-lg">
+                ✓ Media: {mediaCid.slice(0, 12)}...
               </span>
             )}
             <div className="flex-1" />
             <Button
               onClick={() => mutation.mutate()}
-              disabled={mutation.isPending || !provider}
+              disabled={mutation.isPending || !provider || !content.trim()}
+              size="lg"
+              className="min-w-[120px]"
             >
-              {mutation.isPending ? "Posting..." : "Post"}
+              {mutation.isPending ? (
+                <>
+                  <span className="animate-spin mr-2">⏳</span>
+                  Posting...
+                </>
+              ) : (
+                "Post"
+              )}
             </Button>
           </div>
         </div>
